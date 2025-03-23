@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        ".fantomasignore": "ignore",
+        "modelinstance.h": "c",
+        "libfmb.h": "c"
+    }
+}
