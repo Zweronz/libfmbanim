@@ -40,6 +40,8 @@ Frame* umb_sort_frames(UMB* umb)
             frames[i].length = umb->objects[i].frames[i + 1].number - umb->objects[i].frames[i].number;
         }
     }
+
+    return frames;
 }
 
 void set_model_frame(UMB* umb, uint32_t index, ModelInstance* instance, uint16_t nextFrame)
@@ -53,7 +55,7 @@ void set_model_frame(UMB* umb, uint32_t index, ModelInstance* instance, uint16_t
     float progress = instance->frameProgress;
     uint16_t frame = instance->currentKeyframe;
 
-    for (int i = 0; i < umb->objects[index].frames[0].numVertices; i++)
+    for (int i = 0; i < umb->objects[index].frames[frame].numVertices; i++)
     {
         vertex = umb->objects[index].frames[frame].vertices[i];
         normal = umb->objects[index].frames[frame].normals[i];
@@ -91,40 +93,51 @@ uint8_t umb_update_model(UMB* umb, float delta, ModelInstance* instance)
 {
     switch (instance->state)
     {
-        case MSTATE_PAUSED: return;
+        case MSTATE_PAUSED: return 0;
 
         case MSTATE_DEFAULT:
         {
+            instance->frameProgress = 0;
+            instance->currentKeyframe = 0;
+
             for (int i = 0; i < umb->numObjects; i++)
             {
                 memcpy(instance->vertices[i], umb->objects[i].frames[0].vertices, umb->objects[i].frames[0].numVertices * sizeof(Vec3));
                 memcpy(instance->normals[i],  umb->objects[i].frames[0].normals,  umb->objects[i].frames[0].numVertices * sizeof(Vec3));
             }
 
-            return;
+            return 1;
         }
-    }
 
-    instance->frameProgress += delta * (30.0f / instance->frameTable[instance->currentKeyframe].length);
-
-    if (instance->frameProgress >= 1.0f)
-    {
-        if (instance->state != MSTATE_LOOPING)
+        case MSTATE_PLAYING:
+        case MSTATE_LOOPING:
         {
-            if (instance->frameTable[instance->currentKeyframe].index >= instance->rangeHigh)
+            instance->frameProgress += delta * (30.0f / instance->frameTable[instance->currentKeyframe].length);
+
+            if (instance->frameProgress >= 1.0f)
             {
-                instance->state = MSTATE_PAUSED;
+                if (instance->state != MSTATE_LOOPING)
+                {
+                    if (instance->frameTable[instance->currentKeyframe].index >= instance->rangeHigh)
+                    {
+                        instance->state = MSTATE_PAUSED;
+                    }
+                }
+        
+                instance->currentKeyframe = umb_get_next_frame(umb, instance);
+                instance->nextKeyframe = umb_get_next_frame(umb, instance);
+        
+                instance->frameProgress -= 1.0f;
             }
+        
+            for (int i = 0; i < umb->numObjects; i++)
+            {
+                set_model_frame(umb, i, instance, instance->nextKeyframe);
+            }
+        
+            return 1;
         }
-
-        instance->currentKeyframe = get_next_frame(umb, instance);
-        instance->nextKeyframe = get_next_frame(umb, instance);
-
-        instance->frameProgress -= 1.0f;
     }
 
-    for (int i = 0; i < umb->numObjects; i++)
-    {
-        set_model_frame(umb, i, instance, instance->nextKeyframe);
-    }
+    return 2;
 }
